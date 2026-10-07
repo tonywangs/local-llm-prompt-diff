@@ -1,0 +1,10 @@
+{
+  "name": "local-llm-prompt-diff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic offline prompt-template bundle comparison",
+  "type": "module",
+  "bin": { "prompt-diff": "bin/prompt-diff.js" },
+  "scripts": { "test": "node --test", "test:seeded": "node --test test/seeded.test.js" },
+  "engines": { "node": ">=20" }
+}

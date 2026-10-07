@@ -1,0 +1,1 @@
+{"formatVersion":1,"id":"support-prompt","variables":[{"name":"customer","default":"friend"},{"name":"product"}],"messages":[{"id":"policy","role":"system","template":"Be accurate for {{customer}}."},{"id":"question","role":"user","template":"Tell me about {{product}}."}],"metadata":{"owner":"support","revision":1}}
