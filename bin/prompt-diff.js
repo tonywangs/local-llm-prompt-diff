@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { compareFiles, renderHtml, stableJson, writeAtomic } from '../src/index.js';
+import { compareFiles, renderHtml, stableJson, publishReports } from '../src/index.js';
 
 const usage = `Usage: prompt-diff compare BEFORE.json AFTER.json [--json FILE] [--html FILE]\n\nCompares local prompt-template bundles only; no templates are evaluated or transmitted.`;
 function die(message) { process.stderr.write(`error: ${message}\n`); process.exitCode = 2; }
@@ -10,14 +10,18 @@ else {
   let jsonPath, htmlPath;
   for (let i = 0; i < options.length; i += 2) {
     if ((options[i] !== '--json' && options[i] !== '--html') || !options[i + 1]) { die(usage); break; }
+    if ((options[i] === '--json' && jsonPath) || (options[i] === '--html' && htmlPath)) { die('duplicate output option'); break; }
     if (options[i] === '--json') jsonPath = options[i + 1]; else htmlPath = options[i + 1];
   }
   if (!process.exitCode) {
     try {
       const report = compareFiles(before, after);
       const json = stableJson(report) + '\n';
-      if (jsonPath) writeAtomic(jsonPath, json); else process.stdout.write(json);
-      if (htmlPath) writeAtomic(htmlPath, renderHtml(report));
+      const entries = [];
+      if (jsonPath) entries.push({ file: jsonPath, content: json });
+      if (htmlPath) entries.push({ file: htmlPath, content: renderHtml(report) });
+      publishReports(entries);
+      if (!jsonPath) process.stdout.write(json);
     } catch (error) { die(error.message); }
   }
 }

@@ -1,0 +1,29 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { publishReports, compare, readBundle, validateBundle, renderHtml, LIMITS } from '../src/index.js';
+const bundle = () => ({formatVersion:1,id:'demo',variables:[],messages:[]});
+function fixture(t) { const dir=fs.mkdtempSync(path.join(os.tmpdir(),'publication-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return {dir, entries:['a','b'].map(file=>({file:path.join(dir,file),content:file}))}; }
+test('publishes complete pairs, rejects collisions and aliases without changing files', t=>{
+ const {dir,entries}=fixture(t);publishReports(entries);assert.deepEqual(fs.readdirSync(dir),['a','b']);assert.throws(()=>publishReports(entries),/exists/);assert.equal(fs.readFileSync(entries[0].file,'utf8'),'a');assert.throws(()=>publishReports([entries[0],entries[0]]),/duplicate/);
+});
+test('serialization and size failures precede writes',t=>{const {dir,entries}=fixture(t);assert.throws(()=>publishReports([entries[0],{...entries[1],content:{}}]),/serialized/);assert.throws(()=>publishReports([{...entries[0],content:'x'.repeat(LIMITS.outputBytes+1)}]),/exceeds/);assert.deepEqual(fs.readdirSync(dir),[]);});
+for(const operation of ['writeFileSync','fsyncSync','linkSync'])test(`${operation} failure rolls back pair and cleans staging`,t=>{const {dir,entries}=fixture(t);let calls=0;const io={...fs,[operation](...args){if(++calls===2)throw new Error('injected');return fs[operation](...args)}};assert.throws(()=>publishReports(entries,{io}),/injected/);assert.deepEqual(fs.readdirSync(dir),[]);});
+test('cancellation between links rolls back; pre-cancel never writes',t=>{const {dir,entries}=fixture(t);const ac=new AbortController();const io={...fs,linkSync(...args){fs.linkSync(...args);ac.abort()}};assert.throws(()=>publishReports(entries,{io,signal:ac.signal}),/cancelled/);assert.deepEqual(fs.readdirSync(dir),[]);assert.throws(()=>publishReports(entries,{signal:ac.signal}),/cancelled/);});
+test('racing destination and preexisting symlink remain intact',t=>{const {dir,entries}=fixture(t);let n=0;const io={...fs,linkSync(...args){if(++n===2)fs.writeFileSync(args[1],'competitor');return fs.linkSync(...args)}};assert.throws(()=>publishReports(entries,{io}),/EEXIST/);assert.equal(fs.readFileSync(entries[1].file,'utf8'),'competitor');assert.deepEqual(fs.readdirSync(dir),['b']);fs.symlinkSync(entries[1].file,entries[0].file);assert.throws(()=>publishReports(entries),/exists/);assert.equal(fs.readFileSync(entries[0].file,'utf8'),'competitor');});
+test('cleanup errors are surfaced and replacement files are preserved',t=>{const {entries}=fixture(t);let n=0;const io={...fs,linkSync(...args){if(++n===2){fs.unlinkSync(entries[0].file);fs.writeFileSync(entries[0].file,'replacement');throw new Error('injected')}return fs.linkSync(...args)}};assert.throws(()=>publishReports(entries,{io}),/injected/);assert.equal(fs.readFileSync(entries[0].file,'utf8'),'replacement');const {entries:other}=fixture(t);assert.throws(()=>publishReports(other,{io:{...fs,unlinkSync(){throw new Error('cleanup')}}}),/cleanup failed/);});
+test('bounds enforce bytes, dimensions, report size and elapsed comparison time',t=>{const {dir}=fixture(t);const file=path.join(dir,'large');fs.writeFileSync(file,' '.repeat(LIMITS.inputBytes+1));assert.throws(()=>readBundle(file),/exceeds/);for(const [field,n] of [['messages',501],['variables',501]])assert.throws(()=>validateBundle({...bundle(),[field]:Array(n).fill({})}),/too many/);assert.throws(()=>validateBundle({...bundle(),messages:[{id:'m',role:'user',template:'x'.repeat(65537)}]}),/at most/);assert.throws(()=>validateBundle({...bundle(),metadata:Object.fromEntries(Array.from({length:101},(_,i)=>['k'+i,0]))}),/small/);let n=0;assert.throws(()=>compare(bundle(),bundle(),()=>n++*5001),/runtime/);assert.equal(compare(bundle(),bundle(),()=>0).summary.changed,0);const r=compare(bundle(),bundle());assert.throws(()=>renderHtml({...r,changes:Array(5001).fill({})}),/change limit/);assert.throws(()=>renderHtml({...r,changes:[{text:'x'.repeat(LIMITS.outputBytes)}]}),/output exceeds/);});
+test('aggregate work and normalized API input limits have boundary checks',()=>{
+ const b={...bundle(),variables:Array.from({length:500},(_,i)=>({name:'v'+i})),messages:Array.from({length:500},(_,i)=>({id:'m'+i,role:'user',template:''})),metadata:Object.fromEntries(Array.from({length:50},(_,i)=>['k'+i,0]))};
+ assert.equal(compare(b,b).summary.changed,0);const a=structuredClone(b);a.metadata.extra=1;assert.throws(()=>compare(b,a),/work limit/);
+ assert.throws(()=>validateBundle({...bundle(),metadata:{large:'x'.repeat(LIMITS.inputBytes)}}),/normalized input/);
+});
+test('CLI renders the pair before writing and protects input destinations',async t=>{
+ const {spawnSync}=await import('node:child_process');const {dir}=fixture(t);
+ const b={...bundle(),messages:Array.from({length:9},(_,i)=>({id:'m'+i,role:'user',template:'<'.repeat(65000)}))};const a=structuredClone(b);a.messages.forEach(m=>m.template='>'.repeat(65000));
+ const bf=path.join(dir,'before.json'),af=path.join(dir,'after.json'),jf=path.join(dir,'out.json'),hf=path.join(dir,'out.html');fs.writeFileSync(bf,JSON.stringify(b));fs.writeFileSync(af,JSON.stringify(a));
+ const result=spawnSync(process.execPath,['bin/prompt-diff.js','compare',bf,af,'--json',jf,'--html',hf],{encoding:'utf8'});assert.equal(result.status,2);assert.match(result.stderr,/output exceeds/);assert.deepEqual(fs.readdirSync(dir),['after.json','before.json']);
+ const collision=spawnSync(process.execPath,['bin/prompt-diff.js','compare',bf,bf,'--json',bf,'--html',hf],{encoding:'utf8'});assert.equal(collision.status,2);assert.match(collision.stderr,/exists/);assert.deepEqual(JSON.parse(fs.readFileSync(bf)),b);assert.equal(fs.existsSync(hf),false);
+});

@@ -1,0 +1,26 @@
+{
+  "node": "v24.20.0",
+  "browser": "145.0.7632.6",
+  "browserCases": 203,
+  "seededCases": 200,
+  "boundedFindings": 2050,
+  "boundedCompareRenderMs": 73.4220529999584,
+  "elapsedMs": 277015.76785400003,
+  "peakVerifierRssKiB": 169692,
+  "maxMountedArticles": 40,
+  "maxDomElements": 150,
+  "largestHtmlBytes": 382639,
+  "largestJsonBytes": 250363,
+  "automaticExternalRequests": 0,
+  "installedOffline": true,
+  "byteIdentical": true,
+  "inputHashes": [
+    "3d2b56752f87fd1d1a735a831de6d5ce534a9f3a2eaa5b8143ac25481b1aec03",
+    "c974be024367543f6258a7aa4bed4f4533a8ba96c63584879ecb0e36499d5abd"
+  ],
+  "limitations": [
+    "RSS covers verifier Node process only, excluding Chromium and spawned CLI/npm processes.",
+    "Offline emulation plus request interception verifies page traffic; it is not an OS network namespace.",
+    "Elapsed times and RSS are observations, not deterministic guarantees."
+  ]
+}

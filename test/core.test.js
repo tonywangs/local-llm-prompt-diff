@@ -19,6 +19,6 @@ test('HTML is self contained, escaped, filterable, and keyboard accessible', () 
   const report = compare(bundle({ id: 'before' }), bundle({ id: 'after', messages: [{ id: 'one', role: 'system', template: '<img src=x onerror=1>{{name}}' }] }));
   const html = renderHtml(report);
   assert.match(html, /&lt;img/); assert.doesNotMatch(html, /<img src=x/);
-  assert.match(html, /<select id="filter">/); assert.match(html, /tabindex="0"/); assert.match(html, /document.onkeydown/);
+  assert.match(html, /<select id="filter">/); assert.match(html, /a.tabIndex=0/); assert.match(html, /document.onkeydown/);
   assert.doesNotMatch(html, /https?:\/\//);
 });

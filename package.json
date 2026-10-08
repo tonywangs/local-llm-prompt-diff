@@ -4,7 +4,24 @@
   "private": true,
   "description": "Deterministic offline prompt-template bundle comparison",
   "type": "module",
-  "bin": { "prompt-diff": "bin/prompt-diff.js" },
-  "scripts": { "test": "node --test", "test:seeded": "node --test test/seeded.test.js" },
-  "engines": { "node": ">=20" }
+  "bin": {
+    "prompt-diff": "bin/prompt-diff.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "test:seeded": "node --test test/seeded.test.js",
+    "verify": "node scripts/verify.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  },
+  "files": [
+    "bin",
+    "src",
+    "examples",
+    "README.md"
+  ]
 }
